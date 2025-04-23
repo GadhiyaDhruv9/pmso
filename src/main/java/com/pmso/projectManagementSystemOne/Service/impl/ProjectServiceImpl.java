@@ -5,8 +5,6 @@ import com.pmso.projectManagementSystemOne.entity.Project;
 import com.pmso.projectManagementSystemOne.entity.ProjectAssignment;
 import com.pmso.projectManagementSystemOne.entity.ProjectDetails;
 import com.pmso.projectManagementSystemOne.entity.UserEntity;
-import com.pmso.projectManagementSystemOne.enums.Status;
-import com.pmso.projectManagementSystemOne.exception.InvalidStatusTransitionException;
 import com.pmso.projectManagementSystemOne.mapper.ProjectMapper;
 import com.pmso.projectManagementSystemOne.repository.ProjectAssignmentRepository;
 import com.pmso.projectManagementSystemOne.repository.ProjectDetailsRepository;
@@ -21,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,6 +52,9 @@ public class ProjectServiceImpl implements ProjectService {
             Project project = ProjectMapper.mapToProject(projectDto);
             project.setCreatedBy(creator);
             project.setUpdatedBy(creator);
+            if (project.getProjectStatus() == null) {
+                project.setProjectStatus("Draft");
+            }
             Project savedProject = projectRepository.save(project);
             ProjectDetails projectDetails = new ProjectDetails();
             projectDetails.setProject(savedProject);
@@ -86,21 +88,6 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Project not found"));
 
-        // Convert string status to enum
-        Status newStatus = projectDto.getProjectStatus() != null ?
-                Status.valueOf(projectDto.getProjectStatus().replace(" ", "_")) :
-                Status.Draft;
-
-        // Validate status transition
-        Status currentStatus = project.getProjectStatus();
-        if (!currentStatus.canTransitionTo(newStatus)) {
-            throw new InvalidStatusTransitionException(
-                    String.format("Cannot transition project status from %s to %s. " +
-                                    "Valid transitions are: Draft → Pending → In_Progress → Completed",
-                            currentStatus, newStatus));
-        }
-
-        // Authorization check
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getAuthorities() != null) {
             boolean isAdminOrManager = authentication.getAuthorities().stream()
@@ -117,7 +104,7 @@ public class ProjectServiceImpl implements ProjectService {
 
         project.setProjectName(projectDto.getProjectName());
         project.setProjectType(projectDto.getProjectType());
-        project.setProjectStatus(newStatus); // Use the converted enum value
+        project.setProjectStatus(projectDto.getProjectStatus() != null ? projectDto.getProjectStatus() : "Draft");
         project.setProjectDescription(projectDto.getProjectDescription());
         project.setUpdatedBy(updater);
         Project updatedProject = projectRepository.save(project);
@@ -165,5 +152,24 @@ public class ProjectServiceImpl implements ProjectService {
         assignment.setCreatedBy(creator);
         assignment.setUpdatedBy(creator);
         projectAssignmentRepository.save(assignment);
+    }
+
+    @Override
+    public Map<String, Long> getProjectCountsByStatus(List<ProjectDto> projects) {
+        return projects.stream()
+                .collect(Collectors.groupingBy(
+                        project -> project.getProjectStatus() != null ? project.getProjectStatus() : "Draft",
+                        Collectors.counting()
+                ));
+    }
+
+    @Override
+    public Map<String, Long> getAllProjectCountsByStatus() {
+        List<Project> projects = projectRepository.findAll();
+        return projects.stream()
+                .collect(Collectors.groupingBy(
+                        project -> project.getProjectStatus() != null ? project.getProjectStatus() : "Draft",
+                        Collectors.counting()
+                ));
     }
 }

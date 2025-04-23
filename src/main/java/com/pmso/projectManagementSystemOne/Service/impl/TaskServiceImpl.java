@@ -1,15 +1,9 @@
 package com.pmso.projectManagementSystemOne.Service.impl;
 
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
-import com.pmso.projectManagementSystemOne.entity.Project;
-import com.pmso.projectManagementSystemOne.entity.ProjectAssignment;
-import com.pmso.projectManagementSystemOne.entity.Task;
-import com.pmso.projectManagementSystemOne.entity.UserEntity;
+import com.pmso.projectManagementSystemOne.entity.*;
 import com.pmso.projectManagementSystemOne.mapper.TaskMapper;
-import com.pmso.projectManagementSystemOne.repository.ProjectAssignmentRepository;
-import com.pmso.projectManagementSystemOne.repository.ProjectRepository;
-import com.pmso.projectManagementSystemOne.repository.TaskRepository;
-import com.pmso.projectManagementSystemOne.repository.UserRepository;
+import com.pmso.projectManagementSystemOne.repository.*;
 import com.pmso.projectManagementSystemOne.Service.TaskService;
 import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
@@ -18,9 +12,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
-import com.pmso.projectManagementSystemOne.exception.InvalidStatusTransitionException;
-import com.pmso.projectManagementSystemOne.enums.Status;
 
 @Service
 public class TaskServiceImpl implements TaskService {
@@ -39,6 +32,9 @@ public class TaskServiceImpl implements TaskService {
     @Autowired
     private ProjectAssignmentRepository projectAssignmentRepository;
 
+    @Autowired
+    private TaskAssignmentRepository taskAssignmentRepository;
+
     @Override
     @Transactional
     public TaskDto createTask(Long projectId, TaskDto taskDto, String username) {
@@ -50,9 +46,8 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         Task task = TaskMapper.mapToTask(taskDto);
-        // Ensure status is set to Draft if not provided
         if (task.getTaskStatus() == null) {
-            task.setTaskStatus(Status.Draft);
+            task.setTaskStatus("Draft");
         }
         task.setProject(project);
         task.setAssignedTo(user);
@@ -65,6 +60,19 @@ public class TaskServiceImpl implements TaskService {
     }
 
     @Override
+    public List<TaskDto> getTasksByAssignedUser(String username) {
+        try {
+            List<Task> tasks = taskRepository.findByAssignedTo_Username(username);
+            return tasks.stream()
+                    .map(TaskMapper::mapToTaskDto)
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Error fetching tasks for user {}", username, e);
+            throw new RuntimeException("Failed to fetch tasks for user: " + username, e);
+        }
+    }
+
+    @Override
     @Transactional
     public TaskDto updateTask(Long taskId, TaskDto taskDto, String username) {
         Task task = taskRepository.findById(taskId)
@@ -73,21 +81,8 @@ public class TaskServiceImpl implements TaskService {
         UserEntity updater = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Validate status transition
-        Status currentStatus = task.getTaskStatus();
-        Status newStatus = taskDto.getTaskStatus() != null ?
-                Status.valueOf(taskDto.getTaskStatus().replace(" ", "_")) :
-                Status.Draft;
-
-        if (!currentStatus.canTransitionTo(newStatus)) {
-            throw new InvalidStatusTransitionException(
-                    String.format("Cannot transition task status from %s to %s. " +
-                                    "Valid transitions are: Draft → Pending → In_Progress → Completed",
-                            currentStatus, newStatus));
-        }
-
         task.setTaskName(taskDto.getTaskName());
-        task.setTaskStatus(newStatus);
+        task.setTaskStatus(taskDto.getTaskStatus() != null ? taskDto.getTaskStatus() : "Draft");
         task.setTaskPriority(taskDto.getTaskPriority());
         task.setTaskDescription(taskDto.getTaskDescription());
         task.setUpdatedBy(updater);
@@ -95,6 +90,7 @@ public class TaskServiceImpl implements TaskService {
 
         return TaskMapper.mapToTaskDto(updatedTask);
     }
+
     @Override
     public List<TaskDto> getTasksByProject(Long projectId) {
         return taskRepository.findByProject_ProjectId(projectId).stream()
@@ -127,6 +123,7 @@ public class TaskServiceImpl implements TaskService {
 
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new RuntimeException("Task not found"));
+
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         UserEntity assigner = userRepository.findByUsername(username)
@@ -141,10 +138,34 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("User is not assigned to the project");
         }
 
+        TaskAssignment taskAssignment = new TaskAssignment(task, user);
+        taskAssignment.setCreatedBy(assigner);
+        taskAssignment.setUpdatedBy(assigner);
+        taskAssignmentRepository.save(taskAssignment);
+
         task.setAssignedTo(user);
         task.setUpdatedBy(assigner);
         taskRepository.save(task);
 
         logger.info("Task {} assigned to user {} successfully", taskId, userId);
+    }
+
+    @Override
+    public Map<String, Long> getTaskCountByStatus(List<TaskDto> tasks) {
+        return tasks.stream()
+                .collect(Collectors.groupingBy(
+                        task -> task.getTaskStatus() != null ? task.getTaskStatus() : "Draft",
+                        Collectors.counting()
+                ));
+    }
+
+    @Override
+    public Map<String, Long> getAllTaskCountsByStatus() {
+        List<Task> tasks = taskRepository.findAll();
+        return tasks.stream()
+                .collect(Collectors.groupingBy(
+                        task -> task.getTaskStatus() != null ? task.getTaskStatus() : "Draft",
+                        Collectors.counting()
+                ));
     }
 }

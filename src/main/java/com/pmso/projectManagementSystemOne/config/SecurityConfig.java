@@ -43,7 +43,6 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/auth/register/**", "/api/auth/login").permitAll()
                         .requestMatchers("/api/projects/**").hasAnyRole("MANAGER", "ADMIN")
-                        .requestMatchers("/api/hello").permitAll() // testing
                         .requestMatchers("api/users/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/projects/**").hasAnyRole("ADMIN", "MANAGER")
                         .requestMatchers("/api/projects/{projectId}/tasks/**").hasAnyRole("USER", "MANAGER", "ADMIN")

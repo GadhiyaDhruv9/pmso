@@ -2,8 +2,10 @@ package com.pmso.projectManagementSystemOne.controller;
 
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
 import com.pmso.projectManagementSystemOne.Service.TaskService;
+import com.pmso.projectManagementSystemOne.repository.TaskRepository;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -16,15 +18,21 @@ import java.util.List;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskRepository taskRepository;
 
     @Autowired
-    public TaskController(TaskService taskService) {
+    public TaskController(TaskService taskService, TaskRepository taskRepository) {
         this.taskService = taskService;
+        this.taskRepository = taskRepository;
     }
 
     @PostMapping("/add-task")
     @PreAuthorize("hasRole('USER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> createTask(@PathVariable Long projectId, @RequestBody TaskDto taskDto, Authentication auth) {
+
+        if(taskRepository.existsByTaskName(taskDto.getTaskName()))
+            return ResponseUtil.fail("TaskName already exists.", "Conflict", HttpStatus.BAD_REQUEST);
+
         TaskDto createdTask = taskService.createTask(projectId, taskDto, auth.getName());
         return ResponseUtil.created("Task created successfully", createdTask);
     }

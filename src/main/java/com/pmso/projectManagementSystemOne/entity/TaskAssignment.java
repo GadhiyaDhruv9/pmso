@@ -1,10 +1,11 @@
 package com.pmso.projectManagementSystemOne.entity;
 
+import com.pmso.projectManagementSystemOne.utils.CommonUtil;
 import jakarta.persistence.*;
 
 @Entity
 @Table(name = "task_assignments")
-public class TaskAssignment {
+public class TaskAssignment extends CommonUtil {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

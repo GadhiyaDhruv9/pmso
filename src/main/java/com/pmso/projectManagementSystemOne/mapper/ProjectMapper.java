@@ -3,8 +3,6 @@ package com.pmso.projectManagementSystemOne.mapper;
 import com.pmso.projectManagementSystemOne.dto.ProjectDto;
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
 import com.pmso.projectManagementSystemOne.entity.Project;
-import com.pmso.projectManagementSystemOne.enums.Status;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -15,8 +13,7 @@ public class ProjectMapper {
         dto.setProjectId(project.getProjectId());
         dto.setProjectName(project.getProjectName());
         dto.setProjectType(project.getProjectType());
-        // Convert enum to string representation (using name() which returns "Draft", "Pending", etc.)
-        dto.setProjectStatus(project.getProjectStatus().name());
+        dto.setProjectStatus(project.getProjectStatus());
         dto.setProjectDescription(project.getProjectDescription());
         dto.setCreatedAt(project.getCreatedAt());
         dto.setUpdatedAt(project.getUpdatedAt());
@@ -50,16 +47,7 @@ public class ProjectMapper {
         project.setProjectId(dto.getProjectId());
         project.setProjectName(dto.getProjectName());
         project.setProjectType(dto.getProjectType());
-
-        // Handle status conversion with null check and default value
-        if (dto.getProjectStatus() != null) {
-            // Convert string to enum, handling the underscore in "In_Progress"
-            String statusValue = dto.getProjectStatus().replace(" ", "_");
-            project.setProjectStatus(Status.valueOf(statusValue));
-        } else {
-            project.setProjectStatus(Status.Draft); // Default value
-        }
-
+        project.setProjectStatus(dto.getProjectStatus() != null ? dto.getProjectStatus() : "Draft");
         project.setProjectDescription(dto.getProjectDescription());
         return project;
     }

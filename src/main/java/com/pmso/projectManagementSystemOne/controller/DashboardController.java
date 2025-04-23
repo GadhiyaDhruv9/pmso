@@ -4,16 +4,14 @@ import com.pmso.projectManagementSystemOne.dto.ProjectDto;
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
 import com.pmso.projectManagementSystemOne.Service.ProjectService;
 import com.pmso.projectManagementSystemOne.Service.TaskService;
-import com.pmso.projectManagementSystemOne.entity.ProjectAssignment;
-import com.pmso.projectManagementSystemOne.entity.TaskAssignment;
 import com.pmso.projectManagementSystemOne.entity.UserEntity;
 import com.pmso.projectManagementSystemOne.repository.ProjectAssignmentRepository;
-import com.pmso.projectManagementSystemOne.repository.TaskAssignmentRepository;
 import com.pmso.projectManagementSystemOne.repository.UserRepository;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -25,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -36,20 +35,17 @@ public class DashboardController {
     private final TaskService taskService;
     private final UserRepository userRepository;
     private final ProjectAssignmentRepository projectAssignmentRepository;
-    private final TaskAssignmentRepository taskAssignmentRepository;
 
     @Autowired
     public DashboardController(
             ProjectService projectService,
             TaskService taskService,
             UserRepository userRepository,
-            ProjectAssignmentRepository projectAssignmentRepository,
-            TaskAssignmentRepository taskAssignmentRepository) {
+            ProjectAssignmentRepository projectAssignmentRepository) {
         this.projectService = projectService;
         this.taskService = taskService;
         this.userRepository = userRepository;
         this.projectAssignmentRepository = projectAssignmentRepository;
-        this.taskAssignmentRepository = taskAssignmentRepository;
     }
 
     @GetMapping("/user")
@@ -63,29 +59,42 @@ public class DashboardController {
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             // Get projects assigned to the user
-            List<ProjectAssignment> projectAssignments = projectAssignmentRepository.findAll().stream()
-                    .filter(assignment -> assignment.getUser().getUserId().equals(user.getUserId()))
-                    .collect(Collectors.toList());
-            List<ProjectDto> assignedProjects = projectAssignments.stream()
-                    .map(assignment -> projectService.getProjectById(assignment.getProject().getProjectId()))
+            List<ProjectDto> assignedProjects = projectAssignmentRepository.findByUser_UserId(user.getUserId())
+                    .stream()
+                    .map(assignment -> {
+                        try {
+                            return projectService.getProjectById(assignment.getProject().getProjectId());
+                        } catch (Exception e) {
+                            logger.warn("Error fetching project {}", assignment.getProject().getProjectId(), e);
+                            return null;
+                        }
+                    })
+                    .filter(project -> project != null)
                     .collect(Collectors.toList());
 
             // Get tasks assigned to the user
-            List<TaskAssignment> taskAssignments = taskAssignmentRepository.findByUser_Username(username);
-            List<TaskDto> assignedTasks = taskAssignments.stream()
-                    .map(assignment -> taskService.getTaskById(assignment.getTask().getTaskId()))
-                    .collect(Collectors.toList());
+            List<TaskDto> assignedTasks = taskService.getTasksByAssignedUser(username);
+
+            // Get project counts by status
+            Map<String, Long> projectStatusCounts = projectService.getProjectCountsByStatus(assignedProjects);
+
+            // Get task counts by status
+            Map<String, Long> taskStatusCounts = taskService.getTaskCountByStatus(assignedTasks);
 
             Map<String, Object> dashboardData = new HashMap<>();
             dashboardData.put("projects", assignedProjects);
             dashboardData.put("tasks", assignedTasks);
             dashboardData.put("user", username);
+            dashboardData.put("projectStatusCounts", projectStatusCounts);
+            dashboardData.put("taskStatusCounts", taskStatusCounts);
 
             logger.info("User dashboard retrieved successfully for user: {}", username);
             return ResponseUtil.success("User dashboard retrieved successfully", dashboardData);
         } catch (Exception e) {
-            logger.error("Error fetching user dashboard for {}: {}", auth.getName(), e.getMessage());
-            return ResponseUtil.fail("Failed to fetch user dashboard", null, org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error("Error fetching user dashboard for {}: {}", auth.getName(), e);
+            return ResponseUtil.fail("Failed to fetch user dashboard: " + e.getMessage(),
+                    null,
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -104,44 +113,47 @@ public class DashboardController {
                         Map<String, Object> assignmentData = new HashMap<>();
                         assignmentData.put("projectId", assignment.getProject().getProjectId());
                         assignmentData.put("projectName", assignment.getProject().getProjectName());
-                        assignmentData.put("projectStatus", assignment.getProject().getProjectStatus());
+                        assignmentData.put("projectStatus", assignment.getProject().getProjectStatus() != null ?
+                                assignment.getProject().getProjectStatus() : "Draft");
                         assignmentData.put("userId", assignment.getUser().getUserId());
                         assignmentData.put("username", assignment.getUser().getUsername());
-                        assignmentData.put("role", assignment.getRole());
+                        assignmentData.put("role", assignment.getRole() != null ? assignment.getRole() : "MEMBER");
                         return assignmentData;
                     })
                     .collect(Collectors.toList());
 
             // Get all tasks
             List<TaskDto> allTasks = allProjects.stream()
-                    .flatMap(project -> taskService.getTasksByProject(project.getProjectId()).stream())
-                    .collect(Collectors.toList());
-
-            // Get task assignments with user details
-            List<Map<String, Object>> taskAssignments = taskAssignmentRepository.findAll().stream()
-                    .map(assignment -> {
-                        Map<String, Object> assignmentData = new HashMap<>();
-                        assignmentData.put("taskId", assignment.getTask().getTaskId());
-                        assignmentData.put("taskName", assignment.getTask().getTaskName());
-                        assignmentData.put("taskStatus", assignment.getTask().getTaskStatus());
-                        assignmentData.put("projectId", assignment.getTask().getProject().getProjectId());
-                        assignmentData.put("userId", assignment.getUser().getUserId());
-                        assignmentData.put("username", assignment.getUser().getUsername());
-                        return assignmentData;
+                    .flatMap(project -> {
+                        try {
+                            return taskService.getTasksByProject(project.getProjectId()).stream();
+                        } catch (Exception e) {
+                            logger.warn("Error fetching tasks for project {}", project.getProjectId(), e);
+                            return Stream.empty();
+                        }
                     })
                     .collect(Collectors.toList());
+
+            // Get project counts by status
+            Map<String, Long> projectStatusCounts = projectService.getAllProjectCountsByStatus();
+
+            // Get task counts by status
+            Map<String, Long> taskStatusCounts = taskService.getAllTaskCountsByStatus();
 
             Map<String, Object> dashboardData = new HashMap<>();
             dashboardData.put("projects", allProjects);
             dashboardData.put("projectAssignments", projectAssignments);
             dashboardData.put("tasks", allTasks);
-            dashboardData.put("taskAssignments", taskAssignments);
+            dashboardData.put("projectStatusCounts", projectStatusCounts);
+            dashboardData.put("taskStatusCounts", taskStatusCounts);
 
             logger.info("Admin dashboard retrieved successfully");
             return ResponseUtil.success("Admin dashboard retrieved successfully", dashboardData);
         } catch (Exception e) {
-            logger.error("Error fetching admin dashboard: {}", e.getMessage());
-            return ResponseUtil.fail("Failed to fetch admin dashboard", null, org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR);
+            logger.error("Error fetching admin dashboard", e);
+            return ResponseUtil.fail("Failed to fetch admin dashboard: " + e.getMessage(),
+                    null,
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 }

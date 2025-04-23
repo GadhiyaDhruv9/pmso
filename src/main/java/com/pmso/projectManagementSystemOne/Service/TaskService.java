@@ -3,6 +3,7 @@ package com.pmso.projectManagementSystemOne.Service;
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
 
 import java.util.List;
+import java.util.Map;
 
 public interface TaskService {
 
@@ -23,4 +24,9 @@ public interface TaskService {
 
     // ASSIGN TASK TO USER
     void assignTaskToUser(Long taskId, Long userId, String username);
+
+    List<TaskDto> getTasksByAssignedUser(String username);
+
+    Map<String, Long> getTaskCountByStatus(List<TaskDto> tasks);
+    Map<String, Long> getAllTaskCountsByStatus();
 }

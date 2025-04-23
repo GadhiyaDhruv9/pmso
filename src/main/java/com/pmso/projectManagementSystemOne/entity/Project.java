@@ -1,57 +1,57 @@
 package com.pmso.projectManagementSystemOne.entity;
 
-import com.pmso.projectManagementSystemOne.enums.Status;
-import com.pmso.projectManagementSystemOne.utils.CommonUtil;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.Data;
 
-import java.util.ArrayList;
+import java.time.LocalDateTime;
 import java.util.List;
 
+@Data
 @Entity
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
 @Table(name = "projects")
-public class Project extends CommonUtil {
+public class Project {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "project_id")
     private Long projectId;
 
-    @Column(name = "project_name")
     private String projectName;
 
-    @Column(name = "project_type")
     private String projectType;
 
-    @Column(name = "project_description")
+    private String projectStatus;
+
     private String projectDescription;
 
-    @Transient
-    private String createdByName;
+    private LocalDateTime createdAt;
 
-    @Enumerated(EnumType.STRING)
-    private Status projectStatus = Status.Draft;
+    private LocalDateTime updatedAt;
 
-    // RELATIONS
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Task> tasks = new ArrayList<>();
+    @ManyToOne
+    @JoinColumn(name = "created_by")
+    private UserEntity createdBy;
 
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProjectAssignment> assignments = new ArrayList<>();
+    @ManyToOne
+    @JoinColumn(name = "updated_by")
+    private UserEntity updatedBy;
 
-    // Add direct relationship with ProjectDetails if not managed via ProjectAssignment
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<ProjectDetails> projectDetails = new ArrayList<>();
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    private List<Task> tasks;
 
-    @PostLoad
-    private void loadCreatedByName() {
-        this.createdByName = getCreatedBy() != null ? getCreatedBy().getUsername() : null;
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL)
+    private List<ProjectAssignment> assignments;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+        if (projectStatus == null) {
+            projectStatus = "Draft";
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

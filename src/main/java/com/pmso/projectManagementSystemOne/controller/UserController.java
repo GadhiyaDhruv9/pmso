@@ -2,14 +2,12 @@ package com.pmso.projectManagementSystemOne.controller;
 
 import com.pmso.projectManagementSystemOne.dto.UpdateUserProfileDto;
 import com.pmso.projectManagementSystemOne.dto.UserResponseDto;
+import com.pmso.projectManagementSystemOne.dto.userOnlyDto;
 import com.pmso.projectManagementSystemOne.entity.Role;
 import com.pmso.projectManagementSystemOne.entity.UserEntity;
 import com.pmso.projectManagementSystemOne.repository.UserRepository;
 import com.pmso.projectManagementSystemOne.utils.CommonUtil;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,4 +82,36 @@ public class UserController extends CommonUtil {
             return ResponseUtil.fail("Failed to update profile", null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
+
+    @GetMapping("/non-admin-users")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> getNonAdminUsers() {
+        try {
+            logger.info("Fetching users with only USER role");
+
+            List<userOnlyDto> nonAdminUsers = userRepo.findAll().stream()
+                    .filter(user -> user.getRoles().stream()
+                            .map(Role::getName)
+                            .collect(Collectors.toList())
+                            .contains("USER") &&
+                            !user.getRoles().stream()
+                                    .map(Role::getName)
+                                    .collect(Collectors.toList())
+                                    .contains("ADMIN"))
+                    .map(user -> new userOnlyDto(
+                            user.getUserId(),
+                            user.getUsername()
+                    ))
+                    .collect(Collectors.toList());
+
+            logger.info("Successfully retrieved {} non-admin users", nonAdminUsers.size());
+            return ResponseUtil.success("Non-admin users retrieved successfully", nonAdminUsers);
+        } catch (Exception e) {
+            logger.error("Error fetching non-admin users: {}", e.getMessage());
+            return ResponseUtil.fail("Failed to fetch non-admin users: " + e.getMessage(),
+                    null,
+                    HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
 }
