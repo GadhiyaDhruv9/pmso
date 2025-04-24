@@ -2,6 +2,7 @@ package com.pmso.projectManagementSystemOne.mapper;
 
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
 import com.pmso.projectManagementSystemOne.entity.Task;
+import java.util.stream.Collectors;
 
 public class TaskMapper {
 
@@ -24,8 +25,14 @@ public class TaskMapper {
             if (task.getProject() != null) {
                 taskDto.setProjectId(task.getProject().getProjectId());
             }
-            if (task.getAssignedTo() != null) {
-                taskDto.setAssignedToUsername(task.getAssignedTo().getUsername());
+            // Map all assigned users from TaskAssignment
+            if (task.getTaskAssignments() != null) {
+                taskDto.setAssignedToUsername(
+                        task.getTaskAssignments().stream()
+                                .filter(taskAssignment -> taskAssignment.getUser() != null)
+                                .map(taskAssignment -> taskAssignment.getUser().getUsername())
+                                .collect(Collectors.toList())
+                );
             }
         }
         return taskDto;

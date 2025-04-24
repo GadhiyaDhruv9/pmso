@@ -52,6 +52,9 @@ public class TaskController {
     @PutMapping("/{taskId}")
     @PreAuthorize("hasRole('USER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> updateTask(@PathVariable Long projectId, @PathVariable Long taskId, @RequestBody TaskDto taskDto, Authentication authentication) {
+        if(taskRepository.existsByTaskName(taskDto.getTaskName()))
+            return ResponseUtil.fail("Task Name already exists.", "Conflict", HttpStatus.BAD_REQUEST);
+
         String username = authentication.getName();
         TaskDto updatedTask = taskService.updateTask(taskId, taskDto, username);
         return ResponseUtil.success("Task updated successfully", updatedTask);

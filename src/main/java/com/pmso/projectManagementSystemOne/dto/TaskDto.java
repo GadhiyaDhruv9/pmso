@@ -3,6 +3,7 @@ package com.pmso.projectManagementSystemOne.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class TaskDto {
@@ -16,5 +17,5 @@ public class TaskDto {
     private String createdByUsername;
     private String updatedByUsername;
     private Long projectId;
-    private String assignedToUsername;
+    private List<String> assignedToUsername;
 }
