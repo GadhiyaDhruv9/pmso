@@ -2,8 +2,11 @@ package com.pmso.projectManagementSystemOne.entity;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.Getter;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @Entity
@@ -41,6 +44,13 @@ public class Task {
     @ManyToOne
     @JoinColumn(name = "assigned_to")
     private UserEntity assignedTo;
+
+
+    // Getters and setters
+    @Getter
+    @OneToMany(mappedBy = "task", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TaskAssignment> taskAssignments = new ArrayList<>();
+
 
     @PrePersist
     protected void onCreate() {

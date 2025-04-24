@@ -49,6 +49,9 @@ public class ProjectController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> updateProject(@PathVariable Long id, @RequestBody ProjectDto dto, Authentication auth) {
+        if(projectRepo.existsByProjectName(dto.getProjectName()))
+            return ResponseUtil.fail("ProjectName alredy exists", "Conflict", HttpStatus.BAD_REQUEST);
+
         ProjectDto updated = projectService.updateProject(id, dto, auth.getName());
         return ResponseUtil.success("Project updated successfully", updated);
     }
