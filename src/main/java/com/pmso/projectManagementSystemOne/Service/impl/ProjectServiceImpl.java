@@ -145,6 +145,13 @@ public class ProjectServiceImpl implements ProjectService {
         UserEntity creator = userRepository.findByUsername(SecurityContextHolder.getContext().getAuthentication().getName())
                 .orElseThrow(() -> new RuntimeException("Authenticated user not found"));
 
+        boolean isAlreadyAssigned = projectAssignmentRepository.findByProject_ProjectId(projectId)
+                .stream()
+                .anyMatch(assignment -> assignment.getUser().getUserId().equals(userId));
+        if (isAlreadyAssigned) {
+            throw new RuntimeException("User is already assigned to this project");
+        }
+
         ProjectAssignment assignment = new ProjectAssignment();
         assignment.setProject(project);
         assignment.setUser(user);

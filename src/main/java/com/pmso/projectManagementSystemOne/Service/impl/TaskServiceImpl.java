@@ -141,6 +141,13 @@ public class TaskServiceImpl implements TaskService {
             throw new RuntimeException("User is not assigned to the project");
         }
 
+        boolean isAlreadyAssigned = taskAssignmentRepository.findByTask_TaskId(taskId)
+                .stream()
+                .anyMatch(assignment -> assignment.getUser().getUserId().equals(userId));
+        if (isAlreadyAssigned) {
+            throw new RuntimeException("User is already assigned to this task");
+        }
+
         TaskAssignment taskAssignment = new TaskAssignment(task, user);
         taskAssignment.setCreatedBy(assigner);
         taskAssignment.setUpdatedBy(assigner);
