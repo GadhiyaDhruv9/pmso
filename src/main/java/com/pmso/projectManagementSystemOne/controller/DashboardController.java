@@ -5,12 +5,12 @@ import com.pmso.projectManagementSystemOne.Service.TaskService;
 import com.pmso.projectManagementSystemOne.dto.ProjectDto;
 import com.pmso.projectManagementSystemOne.dto.TaskDto;
 import com.pmso.projectManagementSystemOne.entity.UserEntity;
+import com.pmso.projectManagementSystemOne.exception.ApiResponse;
 import com.pmso.projectManagementSystemOne.repository.ProjectAssignmentRepository;
 import com.pmso.projectManagementSystemOne.repository.UserRepository;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -44,136 +45,92 @@ public class DashboardController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('USER')")
-    public ResponseEntity<?> getDashboard(Authentication auth) {
-        try {
-            String username = auth.getName();
-            logger.info("Fetching dashboard for: {}", username);
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboard(Authentication auth) {
+        String username = auth.getName();
+        logger.info("Fetching dashboard for: {}", username);
 
-            UserEntity user = userRepository.findByUsername(username)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+        UserEntity user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-            boolean isAdmin = auth.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-            List<ProjectDto> projects;
-            if (isAdmin) {
-                projects = projectService.getAllProjects();
-            } else {
-                projects = projectAssignmentRepository.findByUser_UserId(user.getUserId())
-                        .stream()
-                        .map(assignment -> {
-                            try {
-                                return projectService.getProjectById(assignment.getProject().getProjectId());
-                            } catch (Exception e) {
-                                logger.warn("Error fetching project {}", assignment.getProject().getProjectId());
-                                return null;
-                            }
-                        })
-                        .filter(project -> project != null)
-                        .collect(Collectors.toList());
-            }
+        List<ProjectDto> projects;
+        if (isAdmin) {
+            projects = projectService.getAllProjects();
+        } else {
+            projects = projectAssignmentRepository.findByUser_UserId(user.getUserId())
+                    .stream()
+                    .map(assignment -> projectService.getProjectById(assignment.getProject().getProjectId()))
+                    .collect(Collectors.toList());
+        }
 
-            Map<String, List<ProjectDto>> projectsByStatus = projects.stream()
+        Map<String, List<ProjectDto>> projectsByStatus = projects.stream()
+                .collect(Collectors.groupingBy(
+                        project -> project.getProjectStatus() != null ? project.getProjectStatus() : "Draft"
+                ));
+
+        List<Map<String, Object>> projectDetails = projectsByStatus.entrySet().stream()
+                .map(entry -> {
+                    Map<String, Object> statusData = new HashMap<>();
+                    statusData.put("projectStatus", entry.getKey());
+                    statusData.put("projectCount", entry.getValue().size());
+                    return statusData;
+                })
+                .collect(Collectors.toList());
+
+        Map<String, Object> projectSummary = new HashMap<>();
+        projectSummary.put("totalProjects", projects.size());
+        projectSummary.put("projectDetails", projectDetails);
+
+        List<Map<String, Object>> taskDetail = new ArrayList<>();
+        int totalTask = 0;
+
+        for (ProjectDto project : projects) {
+            Map<String, Object> projectTaskData = new LinkedHashMap<>();
+            projectTaskData.put("projectname", project.getProjectName());
+
+            List<TaskDto> projectTasks = isAdmin
+                    ? taskService.getTasksByProject(project.getProjectId())
+                    : taskService.getTasksByAssignedUser(username).stream()
+                    .filter(task -> task.getProjectId().equals(project.getProjectId()))
+                    .collect(Collectors.toList());
+
+            int projectTotalTask = projectTasks.size();
+            projectTaskData.put("totalTask", projectTotalTask);
+
+            Map<String, List<TaskDto>> tasksByStatus = projectTasks.stream()
                     .collect(Collectors.groupingBy(
-                            project -> project.getProjectStatus() != null ? project.getProjectStatus() : "Draft"
+                            task -> task.getTaskStatus() != null ? task.getTaskStatus() : "Draft"
                     ));
 
-            //PROJECT DATA
-            List<Map<String, Object>> projectDetails = new ArrayList<>();
-            for (Map.Entry<String, List<ProjectDto>> entry : projectsByStatus.entrySet()) {
-                String status = entry.getKey();
-                List<ProjectDto> statusProjects = entry.getValue();
+            List<Map<String, Object>> taskStatusDetails = tasksByStatus.entrySet().stream()
+                    .map(taskEntry -> {
+                        Map<String, Object> taskStatusInfo = new HashMap<>();
+                        taskStatusInfo.put("taskStatus", taskEntry.getKey());
+                        taskStatusInfo.put("totalTask", taskEntry.getValue().size());
+                        return taskStatusInfo;
+                    })
+                    .sorted((a, b) -> {
+                        String statusA = (String) a.get("taskStatus");
+                        String statusB = (String) b.get("taskStatus");
+                        List<String> order = List.of("pending", "Draft", "Completed");
+                        return Integer.compare(order.indexOf(statusA), order.indexOf(statusB));
+                    })
+                    .collect(Collectors.toList());
 
-                List<Map<String, Object>> projectArray = statusProjects.stream()
-                        .map(project -> {
-                            Map<String, Object> projectData = new HashMap<>();
-
-                            ProjectDto projectDtoWithoutTasks = getProjectDto(project);
-
-                            projectData.put("projectDetails", projectDtoWithoutTasks);
-
-                            List<TaskDto> projectTasks;
-                            try {
-                                if (isAdmin) {
-                                    projectTasks = taskService.getTasksByProject(project.getProjectId());
-                                } else {
-                                    projectTasks = taskService.getTasksByAssignedUser(username).stream()
-                                            .filter(task -> task.getProjectId().equals(project.getProjectId()))
-                                            .collect(Collectors.toList());
-                                }
-
-                            } catch (Exception e) {
-                                logger.warn("Error fetching tasks for project {}", project.getProjectId());
-                                projectTasks = new ArrayList<>();
-                            }
-
-                            Map<String, List<TaskDto>> tasksByStatus = projectTasks.stream()
-                                    .collect(Collectors.groupingBy(
-                                            task -> task.getTaskStatus() != null ? task.getTaskStatus() : "Draft"
-                                    ));
-
-                            //TASK DATA
-                            List<Map<String, Object>> taskStatusData = new ArrayList<>();
-                            for (Map.Entry<String, List<TaskDto>> taskEntry : tasksByStatus.entrySet()) {
-                                String taskStatus = taskEntry.getKey();
-                                List<TaskDto> statusTasks = taskEntry.getValue();
-
-                                Map<String, Object> taskStatusInfo = new HashMap<>();
-                                taskStatusInfo.put("taskStatus", taskStatus);
-                                taskStatusInfo.put("taskCount", statusTasks.size());
-                                taskStatusInfo.put("tasks", statusTasks);
-
-                                taskStatusData.add(taskStatusInfo);
-                            }
-
-                            projectData.put("totalTask", projectTasks.size());
-                            projectData.put("taskDetails", taskStatusData);
-                            return projectData;
-                        })
-                        .collect(Collectors.toList());
-
-                Map<String, Object> statusData = new HashMap<>();
-                statusData.put("projectStatus", status);
-                statusData.put("projectCount", statusProjects.size());
-                statusData.put("project", projectArray);
-
-                projectDetails.add(statusData);
-            }
-
-            Map<String, Object> data = new HashMap<>();
-            data.put("username", username);
-            data.put("totalProjects", projects.size());
-            data.put("role", isAdmin ? "ADMIN" : "USER");
-            data.put("projectDetails", projectDetails);
-
-            logger.info("Dashboard retrieved successfully for user: {}", username);
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Dashboard retrieved successfully");
-            response.put("data", data);
-            response.put("error", null);
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            logger.error("Error fetching dashboard for {}: {}", auth.getName(), e.getMessage());
-            return ResponseUtil.fail("Failed to fetch dashboard: " + e.getMessage(),
-                    null, HttpStatus.INTERNAL_SERVER_ERROR);
+            projectTaskData.put("taskStatusDetails", taskStatusDetails);
+            taskDetail.add(projectTaskData);
+            totalTask += projectTotalTask;
         }
-    }
 
-    private static ProjectDto getProjectDto(ProjectDto project) {
-        ProjectDto projectDtoWithoutTasks = new ProjectDto();
-        projectDtoWithoutTasks.setProjectId(project.getProjectId());
-        projectDtoWithoutTasks.setProjectName(project.getProjectName());
-        projectDtoWithoutTasks.setProjectType(project.getProjectType());
-        projectDtoWithoutTasks.setProjectStatus(project.getProjectStatus());
-        projectDtoWithoutTasks.setProjectDescription(project.getProjectDescription());
-        projectDtoWithoutTasks.setCreatedAt(project.getCreatedAt());
-        projectDtoWithoutTasks.setUpdatedAt(project.getUpdatedAt());
-        projectDtoWithoutTasks.setCreatedByUsername(project.getCreatedByUsername());
-        projectDtoWithoutTasks.setUpdatedByUsername(project.getUpdatedByUsername());
-        projectDtoWithoutTasks.setAssignedToUsernames(project.getAssignedToUsernames());
-        projectDtoWithoutTasks.setTasks(null);
-        return projectDtoWithoutTasks;
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("username", username);
+        data.put("role", isAdmin ? "ADMIN" : "USER");
+        data.put("projectSummary", projectSummary);
+        data.put("totalTask", totalTask);
+        data.put("taskDetail", taskDetail);
+
+        return ResponseUtil.success("Dashboard retrieved successfully", data);
     }
 }

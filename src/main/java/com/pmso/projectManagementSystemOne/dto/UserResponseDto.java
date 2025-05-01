@@ -1,7 +1,6 @@
 package com.pmso.projectManagementSystemOne.dto;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public class UserResponseDto {
     private Long userId;
@@ -12,9 +11,16 @@ public class UserResponseDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private String updatedByUsername;
+    private String profilePicturePath;
+    private String panCardPath;
+    private String aadharCardPath;
+    private String proofOfAddressPath;
+    private String bankDetailsPath;
 
     public UserResponseDto(Long userId, String username, String email, String roleNames, String password,
-                           LocalDateTime createdAt, LocalDateTime updatedAt, String updatedByUsername) {
+                           LocalDateTime createdAt, LocalDateTime updatedAt, String updatedByUsername,
+                           String profilePicturePath, String panCardPath, String aadharCardPath,
+                           String proofOfAddressPath, String bankDetailsPath) {
         this.userId = userId;
         this.username = username;
         this.email = email;
@@ -23,6 +29,11 @@ public class UserResponseDto {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.updatedByUsername = updatedByUsername;
+        this.profilePicturePath = profilePicturePath;
+        this.panCardPath = panCardPath;
+        this.aadharCardPath = aadharCardPath;
+        this.proofOfAddressPath = proofOfAddressPath;
+        this.bankDetailsPath = bankDetailsPath;
     }
 
     // Getters and setters
@@ -47,11 +58,21 @@ public class UserResponseDto {
     public String getUpdatedByUsername() { return updatedByUsername; }
     public void setUpdatedByUsername(String updatedByUsername) { this.updatedByUsername = updatedByUsername; }
 
-    public String getPassword() {
-        return password;
-    }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
-    public void setPassword(String password) {
-        this.password = password;
-    }
+    public String getProfilePicturePath() { return profilePicturePath; }
+    public void setProfilePicturePath(String profilePicturePath) { this.profilePicturePath = profilePicturePath; }
+
+    public String getPanCardPath() { return panCardPath; }
+    public void setPanCardPath(String panCardPath) { this.panCardPath = panCardPath; }
+
+    public String getAadharCardPath() { return aadharCardPath; }
+    public void setAadharCardPath(String aadharCardPath) { this.aadharCardPath = aadharCardPath; }
+
+    public String getProofOfAddressPath() { return proofOfAddressPath; }
+    public void setProofOfAddressPath(String proofOfAddressPath) { this.proofOfAddressPath = proofOfAddressPath; }
+
+    public String getBankDetailsPath() { return bankDetailsPath; }
+    public void setBankDetailsPath(String bankDetailsPath) { this.bankDetailsPath = bankDetailsPath; }
 }

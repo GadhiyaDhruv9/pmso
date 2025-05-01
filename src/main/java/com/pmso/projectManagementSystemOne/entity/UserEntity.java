@@ -51,6 +51,9 @@ public class UserEntity extends CommonUtil {
     @NotBlank(message = "Email is required")
     private String email;
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
+    private List<UserDocument> documents = new ArrayList<>();
+
     public void addRole(Role role) {
         if (role != null && !this.roles.contains(role)) {
             this.roles.add(role);
@@ -80,7 +83,5 @@ public class UserEntity extends CommonUtil {
                 .orElse("");
     }
 
-
     private String jwtToken;
-
 }

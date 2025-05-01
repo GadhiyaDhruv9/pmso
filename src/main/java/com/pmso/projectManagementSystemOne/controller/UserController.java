@@ -3,8 +3,12 @@ package com.pmso.projectManagementSystemOne.controller;
 import com.pmso.projectManagementSystemOne.dto.UpdateUserProfileDto;
 import com.pmso.projectManagementSystemOne.dto.UserResponseDto;
 import com.pmso.projectManagementSystemOne.dto.userOnlyDto;
+import com.pmso.projectManagementSystemOne.entity.DocumentMaster;
 import com.pmso.projectManagementSystemOne.entity.Role;
+import com.pmso.projectManagementSystemOne.entity.UserDocument;
 import com.pmso.projectManagementSystemOne.entity.UserEntity;
+import com.pmso.projectManagementSystemOne.repository.DocumentMasterRepository;
+import com.pmso.projectManagementSystemOne.repository.UserDocumentRepository;
 import com.pmso.projectManagementSystemOne.repository.UserRepository;
 import com.pmso.projectManagementSystemOne.utils.CommonUtil;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -28,14 +33,18 @@ public class UserController extends CommonUtil {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
     private final UserRepository userRepo;
     private final PasswordEncoder encoder;
+    private final UserDocumentRepository userDocumentRepository;
+    private final DocumentMasterRepository documentMasterRepository;
 
     @Autowired
-    public UserController(UserRepository userRepo, PasswordEncoder encoder) {
+    public UserController(UserRepository userRepo, PasswordEncoder encoder,
+                          UserDocumentRepository userDocumentRepository, DocumentMasterRepository documentMasterRepository) {
         this.userRepo = userRepo;
         this.encoder = encoder;
+        this.userDocumentRepository = userDocumentRepository;
+        this.documentMasterRepository = documentMasterRepository;
     }
 
-    //UPDATE USER PROFILE
     @PutMapping("/profile-update")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUserProfile(Authentication auth, @Valid @RequestBody UpdateUserProfileDto dto) {
@@ -43,7 +52,7 @@ public class UserController extends CommonUtil {
             String username = auth.getName();
             UserEntity user = userRepo.findByUsername(username)
                     .orElseThrow(() -> new RuntimeException("User not found."));
-            // UPDATE USERNAME
+
             if (dto.getUsername() != null && !dto.getUsername().isBlank() && !dto.getUsername().equals(username)) {
                 if (userRepo.existsByUsername(dto.getUsername())) {
                     logger.warn("Profile update failed, username={}, error= Username taken", username);
@@ -51,7 +60,7 @@ public class UserController extends CommonUtil {
                 }
                 user.setUsername(dto.getUsername());
             }
-            // UPDATE EMAIL
+
             if (dto.getEmail() != null && !dto.getEmail().isBlank() && !dto.getEmail().equals(user.getEmail())) {
                 if (userRepo.existsByEmail(dto.getEmail())) {
                     logger.warn("Profile updated failed, username={}, error = Email taken", username);
@@ -59,28 +68,45 @@ public class UserController extends CommonUtil {
                 }
                 user.setEmail(dto.getEmail());
             }
-            // UPDATE PASSWORD
+
             if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
                 user.setPassword(encoder.encode(dto.getPassword()));
             }
 
-            UserEntity updatedUser =userRepo.save(user);
-            UserResponseDto userResponseDto = new UserResponseDto(
-                    updatedUser.getUserId(),
-                    updatedUser.getUsername(),
-                    updatedUser.getEmail(),
-                    updatedUser.getPassword(),
-                    updatedUser.getRoles().stream().map(Role::getName).collect(Collectors.joining(",")),
-                    updatedUser.getCreatedAt(),
-                    updatedUser.getUpdatedAt(),
-                    updatedUser.getUpdatedBy() != null ? updatedUser.getUpdatedBy().getUsername() : null
-            );
+            UserEntity updatedUser = userRepo.save(user);
+            List<UserDocument> documents = userDocumentRepository.findByUserId(updatedUser.getUserId());
+
+            UserResponseDto userResponseDto = createUserResponseDto(updatedUser, documents);
             logger.info("Profile updated, username={}", updatedUser.getUsername());
             return ResponseUtil.success("Profile updated", userResponseDto);
         } catch (Exception e) {
             logger.error("Profile update error, username={}, error={}", auth.getName(), e.getMessage());
             return ResponseUtil.fail("Failed to update profile", null, HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private UserResponseDto createUserResponseDto(UserEntity user, List<UserDocument> documents) {
+        Map<String, String> documentPaths = documents.stream()
+                .collect(Collectors.toMap(
+                        doc -> doc.getDocumentMaster().getDocumentCode(),
+                        UserDocument::getFilePath
+                ));
+
+        return new UserResponseDto(
+                user.getUserId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getRoles().stream().map(Role::getName).collect(Collectors.joining(",")),
+                user.getPassword(),
+                user.getCreatedAt(),
+                user.getUpdatedAt(),
+                user.getUpdatedBy() != null ? user.getUpdatedBy().getUsername() : null,
+                documentPaths.getOrDefault("profile", null),
+                documentPaths.getOrDefault("pan", null),
+                documentPaths.getOrDefault("aadhar", null),
+                documentPaths.getOrDefault("address", null),
+                documentPaths.getOrDefault("bank", null)
+        );
     }
 
     @GetMapping("/non-admin-users")
@@ -113,5 +139,4 @@ public class UserController extends CommonUtil {
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
-
 }
