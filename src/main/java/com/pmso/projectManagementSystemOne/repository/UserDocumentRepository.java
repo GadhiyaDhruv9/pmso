@@ -7,5 +7,5 @@ import java.util.List;
 public interface UserDocumentRepository extends JpaRepository<UserDocument, Long> {
     List<UserDocument> findByUserId(Long userId);
 
-    List<UserDocument> findByDocumentMasterDocumentCode(String documentCode);
+    boolean existsByUserIdAndDocumentMaster_DocumentCode(Long userId, String documentCode);
 }

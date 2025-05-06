@@ -19,7 +19,6 @@ public class TaskAssignment extends CommonUtil {
     @JoinColumn(name = "user_id", nullable = false)
     private UserEntity user;
 
-    // Constructors
     public TaskAssignment() {
     }
 
@@ -28,7 +27,6 @@ public class TaskAssignment extends CommonUtil {
         this.user = user;
     }
 
-    // Getters and Setters
     public Long getId() {
         return id;
     }

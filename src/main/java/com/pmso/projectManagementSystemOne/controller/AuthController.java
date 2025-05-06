@@ -2,17 +2,9 @@ package com.pmso.projectManagementSystemOne.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pmso.projectManagementSystemOne.config.JWTGenerator;
-import com.pmso.projectManagementSystemOne.dto.LoginDto;
-import com.pmso.projectManagementSystemOne.dto.RegisterDto;
-import com.pmso.projectManagementSystemOne.dto.UserResponseDto;
-import com.pmso.projectManagementSystemOne.entity.DocumentMaster;
-import com.pmso.projectManagementSystemOne.entity.Role;
-import com.pmso.projectManagementSystemOne.entity.UserDocument;
-import com.pmso.projectManagementSystemOne.entity.UserEntity;
-import com.pmso.projectManagementSystemOne.repository.DocumentMasterRepository;
-import com.pmso.projectManagementSystemOne.repository.RoleRepository;
-import com.pmso.projectManagementSystemOne.repository.UserDocumentRepository;
-import com.pmso.projectManagementSystemOne.repository.UserRepository;
+import com.pmso.projectManagementSystemOne.dto.*;
+import com.pmso.projectManagementSystemOne.entity.*;
+import com.pmso.projectManagementSystemOne.repository.*;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,9 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -68,91 +58,90 @@ public class AuthController {
         this.documentMasterRepository = documentMasterRepository;
     }
 
+    //USER LOGIN
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginDto dto) {
         try {
             Authentication auth = authManager.authenticate(
                     new UsernamePasswordAuthenticationToken(dto.getUsernameOrEmail(), dto.getPassword())
             );
-
             SecurityContextHolder.getContext().setAuthentication(auth);
             String token = jwtGen.generateToken(auth);
             List<String> roles = auth.getAuthorities().stream()
                     .map(a -> a.getAuthority().replace("ROLE_", ""))
                     .collect(Collectors.toList());
-
-            Map<String, Object> data = Map.of("token", token, "roles", roles);
-            return ResponseUtil.success("Login successful", data);
-        } catch (BadCredentialsException e) {
-            return ResponseUtil.fail("Invalid username or password", e.getMessage(), HttpStatus.UNAUTHORIZED);
+            return ResponseUtil.success("Login successful", Map.of("token", token, "roles", roles));
         } catch (Exception e) {
-            return ResponseUtil.fail("Login failed", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return ResponseUtil.fail("Login failed", e.getMessage(),
+                    e instanceof BadCredentialsException ? HttpStatus.UNAUTHORIZED : HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
+    //REGISTER ADMIN
     @PostMapping(value = "/register/admin", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> registerAdmin(
             @RequestParam("username") String username,
             @RequestParam("password") String password,
             @RequestParam("email") String email,
-            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture,
-            @RequestPart(value = "panCard", required = false) MultipartFile panCard,
-            @RequestPart(value = "aadharCard", required = false) MultipartFile aadharCard,
-            @RequestPart(value = "proofOfAddress", required = false) MultipartFile proofOfAddress,
-            @RequestPart(value = "bankDetails", required = false) MultipartFile bankDetails) {
+            @RequestPart(value = "profilePictures") List<MultipartFile> profilePictures,
+            @RequestPart(value = "panCards") List<MultipartFile> panCards,
+            @RequestPart(value = "aadharCards") List<MultipartFile> aadharCards,
+            @RequestPart(value = "proofOfAddresses") List<MultipartFile> proofOfAddresses,
+            @RequestPart(value = "bankDetails") List<MultipartFile> bankDetails) {
 
         RegisterDto dto = new RegisterDto();
         dto.setUsername(username);
         dto.setPassword(password);
         dto.setEmail(email);
-
-        if (profilePicture != null && !profilePicture.isEmpty()) dto.setProfilePicture(profilePicture);
-        if (panCard != null && !panCard.isEmpty()) dto.setPanCard(panCard);
-        if (aadharCard != null && !aadharCard.isEmpty()) dto.setAadharCard(aadharCard);
-        if (proofOfAddress != null && !proofOfAddress.isEmpty()) dto.setProofOfAddress(proofOfAddress);
-        if (bankDetails != null && !bankDetails.isEmpty()) dto.setBankDetails(bankDetails);
+        dto.setProfilePictures(nonNullList(profilePictures));
+        dto.setPanCards(nonNullList(panCards));
+        dto.setAadharCards(nonNullList(aadharCards));
+        dto.setProofOfAddresses(nonNullList(proofOfAddresses));
+        dto.setBankDetails(nonNullList(bankDetails));
 
         return registerUser(dto, "ADMIN");
     }
 
+    //REGISTER MANAGER (NOT NEEDED)
     @PostMapping(value = "/register/manager", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> registerManager(
             @RequestPart("userData") String userDataStr,
-            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture,
-            @RequestPart(value = "panCard", required = false) MultipartFile panCard,
-            @RequestPart(value = "aadharCard", required = false) MultipartFile aadharCard,
-            @RequestPart(value = "proofOfAddress", required = false) MultipartFile proofOfAddress,
-            @RequestPart(value = "bankDetails", required = false) MultipartFile bankDetails) {
+            @RequestPart(value = "profilePictures") List<MultipartFile> profilePictures,
+            @RequestPart(value = "panCards") List<MultipartFile> panCards,
+            @RequestPart(value = "aadharCards") List<MultipartFile> aadharCards,
+            @RequestPart(value = "proofOfAddresses") List<MultipartFile> proofOfAddresses,
+            @RequestPart(value = "bankDetails") List<MultipartFile> bankDetails) {
 
         try {
             RegisterDto dto = new ObjectMapper().readValue(userDataStr, RegisterDto.class);
-            dto.setProfilePicture(profilePicture);
-            dto.setPanCard(panCard);
-            dto.setAadharCard(aadharCard);
-            dto.setProofOfAddress(proofOfAddress);
-            dto.setBankDetails(bankDetails);
+            dto.setProfilePictures(nonNullList(profilePictures));
+            dto.setPanCards(nonNullList(panCards));
+            dto.setAadharCards(nonNullList(aadharCards));
+            dto.setProofOfAddresses(nonNullList(proofOfAddresses));
+            dto.setBankDetails(nonNullList(bankDetails));
             return registerUser(dto, "MANAGER");
         } catch (Exception e) {
             return ResponseUtil.fail("Invalid request data", e.getMessage(), HttpStatus.BAD_REQUEST);
         }
     }
 
+    //REGISTER USER
     @PostMapping(value = "/register/user", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> registerUser(
             @RequestPart("userData") String userDataStr,
-            @RequestPart(value = "profilePicture", required = false) MultipartFile profilePicture,
-            @RequestPart(value = "panCard", required = false) MultipartFile panCard,
-            @RequestPart(value = "aadharCard", required = false) MultipartFile aadharCard,
-            @RequestPart(value = "proofOfAddress", required = false) MultipartFile proofOfAddress,
-            @RequestPart(value = "bankDetails", required = false) MultipartFile bankDetails) {
+            @RequestPart(value = "profilePictures") List<MultipartFile> profilePictures,
+            @RequestPart(value = "panCards") List<MultipartFile> panCards,
+            @RequestPart(value = "aadharCards") List<MultipartFile> aadharCards,
+            @RequestPart(value = "proofOfAddresses") List<MultipartFile> proofOfAddresses,
+            @RequestPart(value = "bankDetails") List<MultipartFile> bankDetails) {
 
         try {
             RegisterDto dto = new ObjectMapper().readValue(userDataStr, RegisterDto.class);
-            dto.setProfilePicture(profilePicture);
-            dto.setPanCard(panCard);
-            dto.setAadharCard(aadharCard);
-            dto.setProofOfAddress(proofOfAddress);
-            dto.setBankDetails(bankDetails);
+            dto.setProfilePictures(nonNullList(profilePictures));
+            dto.setPanCards(nonNullList(panCards));
+            dto.setAadharCards(nonNullList(aadharCards));
+            dto.setProofOfAddresses(nonNullList(proofOfAddresses));
+            dto.setBankDetails(nonNullList(bankDetails));
             return registerUser(dto, "USER");
         } catch (Exception e) {
             return ResponseUtil.fail("Invalid request data", e.getMessage(), HttpStatus.BAD_REQUEST);
@@ -161,29 +150,30 @@ public class AuthController {
 
     private ResponseEntity<?> registerUser(RegisterDto dto, String roleName) {
         if (userRepo.existsByUsername(dto.getUsername())) {
-            return ResponseUtil.fail("Username already exists", "Conflict", HttpStatus.BAD_REQUEST);
+            return ResponseUtil.fail("Username already exists", null, HttpStatus.BAD_REQUEST);
         }
-
         if (dto.getEmail() != null && userRepo.existsByEmail(dto.getEmail())) {
-            return ResponseUtil.fail("Email already exists", "Conflict", HttpStatus.BAD_REQUEST);
+            return ResponseUtil.fail("Email already exists", null, HttpStatus.BAD_REQUEST);
         }
 
-        List<DocumentMaster> mandatoryDocs = documentMasterRepository.findAll().stream()
-                .filter(DocumentMaster::getIsMandatory)
-                .collect(Collectors.toList());
+        Map<String, DocumentMaster> docTypes = documentMasterRepository.findAll().stream()
+                .collect(Collectors.toMap(DocumentMaster::getDocumentCode, dm -> dm));
 
-        Map<String, MultipartFile> uploadedFiles = Map.of(
-                "profile", dto.getProfilePicture(),
-                "pan", dto.getPanCard(),
-                "aadhar", dto.getAadharCard(),
-                "address", dto.getProofOfAddress(),
+        Map<String, List<MultipartFile>> documents = Map.of(
+                "profile", dto.getProfilePictures(),
+                "pan", dto.getPanCards(),
+                "aadhar", dto.getAadharCards(),
+                "address", dto.getProofOfAddresses(),
                 "bank", dto.getBankDetails()
         );
 
-        for (DocumentMaster doc : mandatoryDocs) {
-            MultipartFile file = uploadedFiles.get(doc.getDocumentCode());
-            if (file == null || file.isEmpty()) {
-                return ResponseUtil.fail("Mandatory document missing: " + doc.getDocumentName(), "Bad Request", HttpStatus.BAD_REQUEST);
+        for (Map.Entry<String, DocumentMaster> entry : docTypes.entrySet()) {
+            DocumentMaster doc = entry.getValue();
+            List<MultipartFile> files = documents.get(entry.getKey());
+
+            if (doc.isMandatory() && (files == null || files.isEmpty() || files.stream().allMatch(f -> f.isEmpty()))) {
+                return ResponseUtil.fail("Mandatory document missing: " + doc.getDocumentName(),
+                        null, HttpStatus.BAD_REQUEST);
             }
         }
 
@@ -195,8 +185,6 @@ public class AuthController {
         Role role = roleRepo.findByName(roleName)
                 .orElseThrow(() -> new RuntimeException("Role not found"));
         user.addRole(role);
-        user.setCreatedBy(null);
-        user.setUpdatedBy(null);
 
         UserEntity savedUser = userRepo.save(user);
 
@@ -206,11 +194,19 @@ public class AuthController {
                 Files.createDirectories(uploadPath);
             }
 
-            String profileUrl = processFileUpload(savedUser, dto.getProfilePicture(), "profile");
-            String panUrl = processFileUpload(savedUser, dto.getPanCard(), "pan");
-            String aadharUrl = processFileUpload(savedUser, dto.getAadharCard(), "aadhar");
-            String addressUrl = processFileUpload(savedUser, dto.getProofOfAddress(), "address");
-            String bankUrl = processFileUpload(savedUser, dto.getBankDetails(), "bank");
+            Map<String, List<String>> documentUrls = new HashMap<>();
+            for (Map.Entry<String, List<MultipartFile>> entry : documents.entrySet()) {
+                List<String> urls = new ArrayList<>();
+                DocumentMaster docType = docTypes.get(entry.getKey());
+
+                for (MultipartFile file : entry.getValue()) {
+                    if (!file.isEmpty()) {
+                        String url = processFileUpload(savedUser, file, docType);
+                        urls.add(url);
+                    }
+                }
+                documentUrls.put(entry.getKey(), urls);
+            }
 
             UserResponseDto responseDto = new UserResponseDto(
                     savedUser.getUserId(),
@@ -221,92 +217,56 @@ public class AuthController {
                     savedUser.getCreatedAt(),
                     savedUser.getUpdatedAt(),
                     null,
-                    profileUrl,
-                    panUrl,
-                    aadharUrl,
-                    addressUrl,
-                    bankUrl
+                    documentUrls.get("profile"),
+                    documentUrls.get("pan"),
+                    documentUrls.get("aadhar"),
+                    documentUrls.get("address"),
+                    documentUrls.get("bank")
             );
 
-            return ResponseUtil.success("User registered with role: " + roleName, responseDto);
-
+            return ResponseUtil.success("User registered successfully", responseDto);
         } catch (IOException e) {
-            return ResponseUtil.fail("Failed to upload files", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+            return ResponseUtil.fail("Failed to process documents", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private String processFileUpload(UserEntity user, MultipartFile file, String docCode) throws IOException {
-        if (file == null || file.isEmpty()) {
-            return null;
+    private String processFileUpload(UserEntity user, MultipartFile file, DocumentMaster docType) throws IOException {
+        if (file == null || file.isEmpty()) return null;
+
+        String filename = file.getOriginalFilename();
+        String ext = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
+        if (!Arrays.asList(docType.getAllowedExtensions().split(",")).contains(ext)) {
+            throw new IOException("Invalid file extension for " + docType.getDocumentName());
         }
 
-        DocumentMaster docMaster = documentMasterRepository.findByDocumentCode(docCode)
-                .orElseThrow(() -> new RuntimeException("Document type not found: " + docCode));
-
-        double fileSizeMb = file.getSize() / (1024.0 * 1024.0);
-        if (fileSizeMb > docMaster.getMaxSizeMb()) {
-            throw new IOException("File size exceeds limit for " + docMaster.getDocumentName() + ": " + docMaster.getMaxSizeMb() + "MB");
+        double sizeMB = file.getSize() / (1024.0 * 1024.0);
+        if (sizeMB > docType.getMaxSize()) {
+            throw new IOException("File exceeds maximum size for " + docType.getDocumentName());
         }
 
-        if (!docMaster.getIsAllowedMultiple()) {
-            List<UserDocument> existingDocs = userDocumentRepository.findByUserId(user.getUserId());
-            if (existingDocs.stream().anyMatch(doc -> doc.getDocumentMaster().getDocumentCode().equals(docCode))) {
-                throw new IOException("Multiple uploads not allowed for " + docMaster.getDocumentName());
-            }
+        if (!docType.isAllowedMultiple() &&
+                userDocumentRepository.existsByUserIdAndDocumentMaster_DocumentCode(user.getUserId(), docType.getDocumentCode())) {
+            throw new IOException("Multiple uploads not allowed for " + docType.getDocumentName());
         }
 
-        String userFolderPath = uploadDir + user.getUsername() + "/";
-        Path userDir = Paths.get(userFolderPath);
-        if (!Files.exists(userDir)) {
-            Files.createDirectories(userDir);
-        }
+        String userDir = uploadDir + user.getUsername() + "/";
+        Files.createDirectories(Paths.get(userDir));
 
-        String originalFilename = Objects.requireNonNull(file.getOriginalFilename());
-        String fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        String filename = docCode + "_" + System.currentTimeMillis() + fileExtension;
-
-        Path filePath = Paths.get(userFolderPath + filename);
+        String newFilename = docType.getDocumentCode() + "_" + System.currentTimeMillis() + "." + ext;
+        Path filePath = Paths.get(userDir + newFilename);
         Files.write(filePath, file.getBytes());
 
         UserDocument doc = new UserDocument();
         doc.setUserId(user.getUserId());
         doc.setUsername(user.getUsername());
-        doc.setDocumentMaster(docMaster);
-        doc.setFilePath(fileBaseUrl + user.getUsername() + "/" + filename);
-
+        doc.setDocumentMaster(docType);
+        doc.setFilePath(fileBaseUrl + user.getUsername() + "/" + newFilename);
         userDocumentRepository.save(doc);
 
-        return fileBaseUrl + user.getUsername() + "/" + filename;
+        return doc.getFilePath();
     }
 
-    @GetMapping("/user/{id}")
-    public ResponseEntity<?> getUserById(@PathVariable Long id) {
-        return userRepo.findById(id)
-                .map(user -> {
-                    List<UserDocument> documents = userDocumentRepository.findByUserId(user.getUserId());
-                    Map<String, String> documentPaths = documents.stream()
-                            .collect(Collectors.toMap(
-                                    doc -> doc.getDocumentMaster().getDocumentCode(),
-                                    UserDocument::getFilePath
-                            ));
-
-                    UserResponseDto dto = new UserResponseDto(
-                            user.getUserId(),
-                            user.getUsername(),
-                            user.getEmail(),
-                            user.getRoles().stream().map(Role::getName).collect(Collectors.joining(",")),
-                            null,
-                            user.getCreatedAt(),
-                            user.getUpdatedAt(),
-                            null,
-                            documentPaths.get("profile"),
-                            documentPaths.get("pan"),
-                            documentPaths.get("aadhar"),
-                            documentPaths.get("address"),
-                            documentPaths.get("bank")
-                    );
-                    return ResponseUtil.success("User details fetched", dto);
-                })
-                .orElse(ResponseUtil.fail("User not found", "Invalid user ID", HttpStatus.NOT_FOUND));
+    private <T> List<T> nonNullList(List<T> list) {
+        return list != null ? list : Collections.emptyList();
     }
 }

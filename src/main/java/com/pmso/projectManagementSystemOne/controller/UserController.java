@@ -23,6 +23,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -45,6 +47,7 @@ public class UserController extends CommonUtil {
         this.documentMasterRepository = documentMasterRepository;
     }
 
+    //UPDATE USER PROFILE
     @PutMapping("/profile-update")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUserProfile(Authentication auth, @Valid @RequestBody UpdateUserProfileDto dto) {
@@ -86,10 +89,10 @@ public class UserController extends CommonUtil {
     }
 
     private UserResponseDto createUserResponseDto(UserEntity user, List<UserDocument> documents) {
-        Map<String, String> documentPaths = documents.stream()
-                .collect(Collectors.toMap(
+        Map<String, List<String>> documentPaths = documents.stream()
+                .collect(Collectors.groupingBy(
                         doc -> doc.getDocumentMaster().getDocumentCode(),
-                        UserDocument::getFilePath
+                        Collectors.mapping(UserDocument::getFilePath, Collectors.toList())
                 ));
 
         return new UserResponseDto(
@@ -101,14 +104,15 @@ public class UserController extends CommonUtil {
                 user.getCreatedAt(),
                 user.getUpdatedAt(),
                 user.getUpdatedBy() != null ? user.getUpdatedBy().getUsername() : null,
-                documentPaths.getOrDefault("profile", null),
-                documentPaths.getOrDefault("pan", null),
-                documentPaths.getOrDefault("aadhar", null),
-                documentPaths.getOrDefault("address", null),
-                documentPaths.getOrDefault("bank", null)
+                documentPaths.getOrDefault("profile", Collections.emptyList()),
+                documentPaths.getOrDefault("pan", Collections.emptyList()),
+                documentPaths.getOrDefault("aadhar", Collections.emptyList()),
+                documentPaths.getOrDefault("address", Collections.emptyList()),
+                documentPaths.getOrDefault("bank", Collections.emptyList())
         );
     }
 
+    //GET REGISTER USERS ONLY NOT ADMINS
     @GetMapping("/non-admin-users")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getNonAdminUsers() {
@@ -119,7 +123,7 @@ public class UserController extends CommonUtil {
                     .filter(user -> user.getRoles().stream()
                             .map(Role::getName)
                             .collect(Collectors.toList())
-                            .contains("USER") &&
+                                .contains("USER") &&
                             !user.getRoles().stream()
                                     .map(Role::getName)
                                     .collect(Collectors.toList())

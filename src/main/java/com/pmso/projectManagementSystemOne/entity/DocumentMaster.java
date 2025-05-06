@@ -19,12 +19,15 @@ public class DocumentMaster {
     @Column(name = "document_code", nullable = false, unique = true)
     private String documentCode;
 
-    @Column(name = "is_mandatory", nullable = false)
-    private Boolean isMandatory = false;
+    @Column(name = "is_mandatory")
+    private boolean isMandatory = false;
 
-    @Column(name = "is_allowed_multiple", nullable = false)
-    private Boolean isAllowedMultiple = false;
+    @Column(name = "is_allowed_multiple")
+    private boolean isAllowedMultiple = false;
 
-    @Column(name = "max_size_mb", nullable = false)
-    private Double maxSizeMb;
+    @Column(name = "max_size")
+    private Double maxSize;
+
+    @Column(name = "allowed_extensions")
+    private String allowedExtensions = "jpg,jpeg,png,pdf";
 }

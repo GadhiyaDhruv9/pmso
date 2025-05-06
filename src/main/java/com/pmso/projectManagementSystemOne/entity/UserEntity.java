@@ -82,6 +82,4 @@ public class UserEntity extends CommonUtil {
                 .reduce((a, b) -> a + ", " + b)
                 .orElse("");
     }
-
-    private String jwtToken;
 }

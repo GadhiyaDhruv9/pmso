@@ -1,26 +1,19 @@
 package com.pmso.projectManagementSystemOne.dto;
 
 import org.springframework.web.multipart.MultipartFile;
-
-import javax.validation.constraints.Email;
-import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.*;
+import java.util.List;
 
 public class RegisterDto {
-    @NotBlank
-    private String username;
+    @NotBlank private String username;
+    @NotBlank private String password;
+    @NotBlank @Email private String email;
 
-    @NotBlank
-    private String password;
-
-    @NotBlank
-    @Email
-    private String email;
-
-    private MultipartFile profilePicture;
-    private MultipartFile panCard;
-    private MultipartFile aadharCard;
-    private MultipartFile proofOfAddress;
-    private MultipartFile bankDetails;
+    private List<MultipartFile> profilePictures;
+    private List<MultipartFile> panCards;
+    private List<MultipartFile> aadharCards;
+    private List<MultipartFile> proofOfAddresses;
+    private List<MultipartFile> bankDetails;
 
     // Getters and Setters
     public String getUsername() { return username; }
@@ -32,18 +25,28 @@ public class RegisterDto {
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
-    public MultipartFile getProfilePicture() { return profilePicture; }
-    public void setProfilePicture(MultipartFile profilePicture) { this.profilePicture = profilePicture; }
+    public List<MultipartFile> getProfilePictures() { return profilePictures; }
+    public void setProfilePictures(List<MultipartFile> profilePictures) {
+        this.profilePictures = profilePictures;
+    }
 
-    public MultipartFile getPanCard() { return panCard; }
-    public void setPanCard(MultipartFile panCard) { this.panCard = panCard; }
+    public List<MultipartFile> getPanCards() { return panCards; }
+    public void setPanCards(List<MultipartFile> panCards) {
+        this.panCards = panCards;
+    }
 
-    public MultipartFile getAadharCard() { return aadharCard; }
-    public void setAadharCard(MultipartFile aadharCard) { this.aadharCard = aadharCard; }
+    public List<MultipartFile> getAadharCards() { return aadharCards; }
+    public void setAadharCards(List<MultipartFile> aadharCards) {
+        this.aadharCards = aadharCards;
+    }
 
-    public MultipartFile getProofOfAddress() { return proofOfAddress; }
-    public void setProofOfAddress(MultipartFile proofOfAddress) { this.proofOfAddress = proofOfAddress; }
+    public List<MultipartFile> getProofOfAddresses() { return proofOfAddresses; }
+    public void setProofOfAddresses(List<MultipartFile> proofOfAddresses) {
+        this.proofOfAddresses = proofOfAddresses;
+    }
 
-    public MultipartFile getBankDetails() { return bankDetails; }
-    public void setBankDetails(MultipartFile bankDetails) { this.bankDetails = bankDetails; }
+    public List<MultipartFile> getBankDetails() { return bankDetails; }
+    public void setBankDetails(List<MultipartFile> bankDetails) {
+        this.bankDetails = bankDetails;
+    }
 }

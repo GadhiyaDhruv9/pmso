@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
@@ -26,6 +27,7 @@ public class TaskController {
         this.taskRepository = taskRepository;
     }
 
+    //CREATE NEW TASK
     @PostMapping("/add-task")
     @PreAuthorize("hasRole('USER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> createTask(@PathVariable Long projectId, @RequestBody TaskDto taskDto, Authentication auth) {
@@ -37,18 +39,21 @@ public class TaskController {
         return ResponseUtil.created("Task created successfully", createdTask);
     }
 
+    //GET TASK
     @GetMapping
     public ResponseEntity<?> getTaskByProject(@PathVariable Long projectId) {
         List<TaskDto> tasks = taskService.getTasksByProject(projectId);
         return ResponseUtil.success("Tasks retrieved successfully", tasks);
     }
 
+    //GET TASK BY ID
     @GetMapping("/{taskId}")
     public ResponseEntity<?> getTaskById(@PathVariable Long projectId, @PathVariable Long taskId) {
         TaskDto tasks = taskService.getTaskById(taskId);
         return ResponseUtil.success("Task retrieved successfully", tasks);
     }
 
+    //UPDATE TASK BY TASK ID
     @PutMapping("/{taskId}")
     @PreAuthorize("hasRole('USER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> updateTask(@PathVariable Long projectId, @PathVariable Long taskId, @RequestBody TaskDto taskDto, Authentication authentication) {
@@ -57,6 +62,7 @@ public class TaskController {
         return ResponseUtil.success("Task updated successfully", updatedTask);
     }
 
+    //DELETE TASK BY ID
     @DeleteMapping("/{taskId}")
     @PreAuthorize("hasRole('USER') or hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> deleteTask(@PathVariable Long projectId, @PathVariable Long taskId, Authentication authentication) {
@@ -65,6 +71,7 @@ public class TaskController {
         return ResponseUtil.success("Task deleted successfully", null);
     }
 
+    //ASSIGN TASK TO USER
     @PostMapping("/{taskId}/assign/{userId}")
     @PreAuthorize("hasRole('MANAGER') or hasRole('ADMIN')")
     public ResponseEntity<?> assignTaskToUser(@PathVariable Long projectId, @PathVariable Long taskId, @PathVariable Long userId, Authentication authentication) {
