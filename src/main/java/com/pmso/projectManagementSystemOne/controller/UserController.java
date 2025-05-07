@@ -1,15 +1,8 @@
 package com.pmso.projectManagementSystemOne.controller;
 
-import com.pmso.projectManagementSystemOne.dto.UpdateUserProfileDto;
-import com.pmso.projectManagementSystemOne.dto.UserResponseDto;
-import com.pmso.projectManagementSystemOne.dto.userOnlyDto;
-import com.pmso.projectManagementSystemOne.entity.DocumentMaster;
-import com.pmso.projectManagementSystemOne.entity.Role;
-import com.pmso.projectManagementSystemOne.entity.UserDocument;
-import com.pmso.projectManagementSystemOne.entity.UserEntity;
-import com.pmso.projectManagementSystemOne.repository.DocumentMasterRepository;
-import com.pmso.projectManagementSystemOne.repository.UserDocumentRepository;
-import com.pmso.projectManagementSystemOne.repository.UserRepository;
+import com.pmso.projectManagementSystemOne.dto.*;
+import com.pmso.projectManagementSystemOne.entity.*;
+import com.pmso.projectManagementSystemOne.repository.*;
 import com.pmso.projectManagementSystemOne.utils.CommonUtil;
 import com.pmso.projectManagementSystemOne.utils.ResponseUtil;
 import org.slf4j.Logger;
@@ -23,10 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -47,7 +37,6 @@ public class UserController extends CommonUtil {
         this.documentMasterRepository = documentMasterRepository;
     }
 
-    //UPDATE USER PROFILE
     @PutMapping("/profile-update")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> updateUserProfile(Authentication auth, @Valid @RequestBody UpdateUserProfileDto dto) {
@@ -89,11 +78,13 @@ public class UserController extends CommonUtil {
     }
 
     private UserResponseDto createUserResponseDto(UserEntity user, List<UserDocument> documents) {
-        Map<String, List<String>> documentPaths = documents.stream()
-                .collect(Collectors.groupingBy(
-                        doc -> doc.getDocumentMaster().getDocumentCode(),
-                        Collectors.mapping(UserDocument::getFilePath, Collectors.toList())
-                ));
+        List<UserDocumentDto> documentDtos = documents.stream()
+                .map(doc -> new UserDocumentDto(
+                        doc.getId(),
+                        doc.getDocumentMaster().getDocumentCode(),
+                        doc.getFilePath()
+                ))
+                .collect(Collectors.toList());
 
         return new UserResponseDto(
                 user.getUserId(),
@@ -104,15 +95,10 @@ public class UserController extends CommonUtil {
                 user.getCreatedAt(),
                 user.getUpdatedAt(),
                 user.getUpdatedBy() != null ? user.getUpdatedBy().getUsername() : null,
-                documentPaths.getOrDefault("profile", Collections.emptyList()),
-                documentPaths.getOrDefault("pan", Collections.emptyList()),
-                documentPaths.getOrDefault("aadhar", Collections.emptyList()),
-                documentPaths.getOrDefault("address", Collections.emptyList()),
-                documentPaths.getOrDefault("bank", Collections.emptyList())
+                documentDtos
         );
     }
 
-    //GET REGISTER USERS ONLY NOT ADMINS
     @GetMapping("/non-admin-users")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getNonAdminUsers() {
@@ -123,7 +109,7 @@ public class UserController extends CommonUtil {
                     .filter(user -> user.getRoles().stream()
                             .map(Role::getName)
                             .collect(Collectors.toList())
-                                .contains("USER") &&
+                            .contains("USER") &&
                             !user.getRoles().stream()
                                     .map(Role::getName)
                                     .collect(Collectors.toList())
