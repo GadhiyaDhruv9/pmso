@@ -16,7 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @RestController
@@ -78,12 +78,23 @@ public class UserController extends CommonUtil {
     }
 
     private UserResponseDto createUserResponseDto(UserEntity user, List<UserDocument> documents) {
-        List<UserDocumentDto> documentDtos = documents.stream()
-                .map(doc -> new UserDocumentDto(
-                        doc.getId(),
-                        doc.getDocumentMaster().getDocumentCode(),
-                        doc.getFilePath()
-                ))
+        Map<String, List<UserDocument>> groupedDocs = documents.stream()
+                .collect(Collectors.groupingBy(doc -> doc.getDocumentMaster().getDocumentCode()));
+
+        List<UserDocumentDto> documentDtos = groupedDocs.entrySet().stream()
+                .map(entry -> {
+                    String docCode = entry.getKey();
+                    List<UserDocument> docs = entry.getValue();
+                    Long docId = docs.stream()
+                            .map(UserDocument::getId)
+                            .findFirst()
+                            .orElse(null);
+                    List<String> filePaths = docs.stream()
+                            .map(UserDocument::getFilePath)
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());
+                    return new UserDocumentDto(docId, docCode, filePaths);
+                })
                 .collect(Collectors.toList());
 
         return new UserResponseDto(

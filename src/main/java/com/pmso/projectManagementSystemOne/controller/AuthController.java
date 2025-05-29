@@ -87,20 +87,39 @@ public class AuthController {
             @RequestParam("password") String password,
             @RequestParam("email") String email,
             @RequestParam(value = "documentTypes", required = false) List<String> documentTypes,
-            @RequestParam(value = "documents", required = false) List<MultipartFile> documents) {
+            @RequestParam(value = "fileCounts", required = false) List<Integer> fileCounts,
+            @RequestParam Map<String, String> allParams,
+            @RequestParam(value = "documents", required = false) List<MultipartFile> documents) throws IOException {
 
         RegisterDto dto = new RegisterDto();
         dto.setUsername(username);
         dto.setPassword(password);
         dto.setEmail(email);
-        if (documents != null && documentTypes != null) {
-            Map<String, List<MultipartFile>> docMap = new HashMap<>();
-            for (int i = 0; i < Math.min(documents.size(), documentTypes.size()); i++) {
-                String docType = documentTypes.get(i).toLowerCase();
-                docMap.computeIfAbsent(docType, k -> new ArrayList<>()).add(documents.get(i));
+
+        // Try to parse grouped structure first
+        Map<String, List<MultipartFile>> docMap = new LinkedHashMap<>();
+        boolean groupedStructureDetected = false;
+
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            if (entry.getKey().startsWith("documentTypes[")) {
+                groupedStructureDetected = true;
+                String docType = entry.getKey().replaceAll("documentTypes\\[(\\w+)\\]\\[\\]", "$1");
+                String fileKeyPrefix = "documents[" + docType + "][";
+                List<MultipartFile> filesForType = documents != null ? documents.stream()
+                        .filter(file -> file.getName() != null && file.getName().startsWith(fileKeyPrefix))
+                        .collect(Collectors.toList()) : new ArrayList<>();
+                if (!filesForType.isEmpty()) {
+                    docMap.put(docType, filesForType);
+                }
             }
-            dto.setDocuments(docMap);
         }
+
+        // If grouped structure wasn't detected, fall back to flat structure
+        if (!groupedStructureDetected && documentTypes != null && documents != null) {
+            docMap = pairDocumentsWithTypes(documentTypes, documents, fileCounts);
+        }
+
+        dto.setDocuments(docMap);
         return registerUser(dto, "ADMIN");
     }
 
@@ -108,17 +127,36 @@ public class AuthController {
     public ResponseEntity<?> registerManager(
             @RequestPart("userData") String userDataStr,
             @RequestParam(value = "documentTypes", required = false) List<String> documentTypes,
-            @RequestParam(value = "documents", required = false) List<MultipartFile> documents) throws Exception {
+            @RequestParam(value = "fileCounts", required = false) List<Integer> fileCounts,
+            @RequestParam Map<String, String> allParams,
+            @RequestParam(value = "documents", required = false) List<MultipartFile> documents) throws IOException {
 
         RegisterDto dto = new ObjectMapper().readValue(userDataStr, RegisterDto.class);
-        if (documents != null && documentTypes != null) {
-            Map<String, List<MultipartFile>> docMap = new HashMap<>();
-            for (int i = 0; i < Math.min(documents.size(), documentTypes.size()); i++) {
-                String docType = documentTypes.get(i).toLowerCase();
-                docMap.computeIfAbsent(docType, k -> new ArrayList<>()).add(documents.get(i));
+
+        // Try to parse grouped structure first
+        Map<String, List<MultipartFile>> docMap = new LinkedHashMap<>();
+        boolean groupedStructureDetected = false;
+
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            if (entry.getKey().startsWith("documentTypes[")) {
+                groupedStructureDetected = true;
+                String docType = entry.getKey().replaceAll("documentTypes\\[(\\w+)\\]\\[\\]", "$1");
+                String fileKeyPrefix = "documents[" + docType + "][";
+                List<MultipartFile> filesForType = documents != null ? documents.stream()
+                        .filter(file -> file.getName() != null && file.getName().startsWith(fileKeyPrefix))
+                        .collect(Collectors.toList()) : new ArrayList<>();
+                if (!filesForType.isEmpty()) {
+                    docMap.put(docType, filesForType);
+                }
             }
-            dto.setDocuments(docMap);
         }
+
+        // If grouped structure wasn't detected, fall back to flat structure
+        if (!groupedStructureDetected && documentTypes != null && documents != null) {
+            docMap = pairDocumentsWithTypes(documentTypes, documents, fileCounts);
+        }
+
+        dto.setDocuments(docMap);
         return registerUser(dto, "MANAGER");
     }
 
@@ -126,102 +164,208 @@ public class AuthController {
     public ResponseEntity<?> registerUser(
             @RequestPart("userData") String userDataStr,
             @RequestParam(value = "documentTypes", required = false) List<String> documentTypes,
-            @RequestParam(value = "documents", required = false) List<MultipartFile> documents) throws Exception {
+            @RequestParam(value = "fileCounts", required = false) List<Integer> fileCounts,
+            @RequestParam Map<String, String> allParams,
+            @RequestParam(value = "documents", required = false) List<MultipartFile> documents) throws IOException {
 
         RegisterDto dto = new ObjectMapper().readValue(userDataStr, RegisterDto.class);
-        if (documents != null && documentTypes != null) {
-            Map<String, List<MultipartFile>> docMap = new HashMap<>();
-            for (int i = 0; i < Math.min(documents.size(), documentTypes.size()); i++) {
-                String docType = documentTypes.get(i).toLowerCase();
-                docMap.computeIfAbsent(docType, k -> new ArrayList<>()).add(documents.get(i));
+
+        // Try to parse grouped structure first
+        Map<String, List<MultipartFile>> docMap = new LinkedHashMap<>();
+        boolean groupedStructureDetected = false;
+
+        for (Map.Entry<String, String> entry : allParams.entrySet()) {
+            if (entry.getKey().startsWith("documentTypes[")) {
+                groupedStructureDetected = true;
+                String docType = entry.getKey().replaceAll("documentTypes\\[(\\w+)\\]\\[\\]", "$1");
+                String fileKeyPrefix = "documents[" + docType + "][";
+                List<MultipartFile> filesForType = documents != null ? documents.stream()
+                        .filter(file -> file.getName() != null && file.getName().startsWith(fileKeyPrefix))
+                        .collect(Collectors.toList()) : new ArrayList<>();
+                if (!filesForType.isEmpty()) {
+                    docMap.put(docType, filesForType);
+                }
             }
-            dto.setDocuments(docMap);
         }
+
+        // If grouped structure wasn't detected, fall back to flat structure
+        if (!groupedStructureDetected && documentTypes != null && documents != null) {
+            docMap = pairDocumentsWithTypes(documentTypes, documents, fileCounts);
+        }
+
+        dto.setDocuments(docMap);
         return registerUser(dto, "USER");
+    }
+
+    private Map<String, List<MultipartFile>> pairDocumentsWithTypes(List<String> documentTypes, List<MultipartFile> documents, List<Integer> fileCounts) {
+        Map<String, List<MultipartFile>> docMap = new LinkedHashMap<>();
+
+        if (documentTypes == null || documents == null || documentTypes.isEmpty() || documents.isEmpty()) {
+            return docMap;
+        }
+
+        // Clean up documentTypes to remove duplicates while preserving order
+        List<String> uniqueDocTypes = new ArrayList<>(new LinkedHashSet<>(documentTypes));
+        int fileIndex = 0;
+
+        // If fileCounts is provided and matches the number of document types, use it
+        if (fileCounts != null && fileCounts.size() == uniqueDocTypes.size()) {
+            for (int i = 0; i < uniqueDocTypes.size(); i++) {
+                String docType = uniqueDocTypes.get(i);
+                int count = fileCounts.get(i);
+                if (docType != null && !docType.isBlank() && count > 0) {
+                    List<MultipartFile> filesForType = new ArrayList<>();
+                    for (int j = 0; j < count && fileIndex < documents.size(); j++, fileIndex++) {
+                        MultipartFile file = documents.get(fileIndex);
+                        if (file != null && !file.isEmpty()) {
+                            filesForType.add(file);
+                        }
+                    }
+                    if (!filesForType.isEmpty()) {
+                        docMap.put(docType, filesForType);
+                    }
+                }
+            }
+            return docMap;
+        }
+
+        // Fallback: Use a default mapping strategy based on document type expectations
+        // Define expected file counts for each document type
+        Map<String, Integer> defaultFileCounts = new HashMap<>();
+        defaultFileCounts.put("profile", 2);
+        defaultFileCounts.put("aadhar", 2);
+        defaultFileCounts.put("pan", 2);
+        defaultFileCounts.put("address", 1); // Address typically has 1 file
+        defaultFileCounts.put("bank", 1);   // Bank typically has 1 file
+        defaultFileCounts.put("gst", 2);
+
+        for (String docType : uniqueDocTypes) {
+            if (docType != null && !docType.isBlank()) {
+                int expectedCount = defaultFileCounts.getOrDefault(docType.toLowerCase(), 1);
+                List<MultipartFile> filesForType = new ArrayList<>();
+                for (int j = 0; j < expectedCount && fileIndex < documents.size(); j++, fileIndex++) {
+                    MultipartFile file = documents.get(fileIndex);
+                    if (file != null && !file.isEmpty()) {
+                        filesForType.add(file);
+                    }
+                }
+                if (!filesForType.isEmpty()) {
+                    docMap.put(docType, filesForType);
+                }
+            }
+        }
+
+        return docMap;
     }
 
     @Transactional
     private ResponseEntity<?> registerUser(RegisterDto dto, String roleName) {
-        if (userRepo.existsByUsername(dto.getUsername())) {
-            logger.warn("Registration failed: Username {} already exists", dto.getUsername());
-            return ResponseUtil.fail("Username already exists", null, HttpStatus.BAD_REQUEST);
-        }
-        if (dto.getEmail() != null && userRepo.existsByEmail(dto.getEmail())) {
-            logger.warn("Registration failed: Email {} already exists", dto.getEmail());
-            return ResponseUtil.fail("Email already exists", null, HttpStatus.BAD_REQUEST);
-        }
-
-        Map<String, DocumentMaster> docTypes = documentMasterRepository.findAll().stream()
-                .collect(Collectors.toMap(DocumentMaster::getDocumentCode, dm -> dm));
-
-        docTypes.forEach((code, doc) ->
-                logger.debug("Document type: {} ({}), isMandatory: {}",
-                        code, doc.getDocumentName(), doc.isMandatory())
-        );
-
-        boolean hasMandatoryDocs = docTypes.values().stream().anyMatch(DocumentMaster::isMandatory);
-        if (hasMandatoryDocs) {
-            List<String> missingDocs = new ArrayList<>();
-            for (DocumentMaster doc : docTypes.values()) {
-                List<MultipartFile> files = dto.getDocuments() != null ?
-                        dto.getDocuments().get(doc.getDocumentCode()) : null;
-                if (doc.isMandatory() && (files == null || files.isEmpty() || files.stream().allMatch(MultipartFile::isEmpty))) {
-                    missingDocs.add(doc.getDocumentName());
-                }
+        try {
+            // Validate user existence
+            if (userRepo.existsByUsername(dto.getUsername())) {
+                return ResponseUtil.fail("Username already exists", null, HttpStatus.BAD_REQUEST);
             }
+            if (dto.getEmail() != null && userRepo.existsByEmail(dto.getEmail())) {
+                return ResponseUtil.fail("Email already exists", null, HttpStatus.BAD_REQUEST);
+            }
+
+            // Get all document types from DB
+            Map<String, DocumentMaster> existingDocTypes = documentMasterRepository.findAll()
+                    .stream()
+                    .collect(Collectors.toMap(DocumentMaster::getDocumentCode, dm -> dm));
+
+            // Validate mandatory documents
+            List<String> missingDocs = existingDocTypes.values().stream()
+                    .filter(docMaster -> docMaster.isMandatory())
+                    .filter(doc -> dto.getDocuments() == null ||
+                            !dto.getDocuments().containsKey(doc.getDocumentCode()) ||
+                            dto.getDocuments().get(doc.getDocumentCode()).isEmpty())
+                    .map(DocumentMaster::getDocumentName)
+                    .collect(Collectors.toList());
+
             if (!missingDocs.isEmpty()) {
-                logger.warn("Registration failed for username {}: Mandatory documents missing: {}",
-                        dto.getUsername(), String.join(", ", missingDocs));
                 return ResponseUtil.fail("Mandatory documents missing: " + String.join(", ", missingDocs),
                         null, HttpStatus.BAD_REQUEST);
             }
-        } else {
-            logger.debug("No mandatory documents required for registration");
-        }
 
-        UserEntity user = new UserEntity();
-        user.setUsername(dto.getUsername());
-        user.setPassword(encoder.encode(dto.getPassword()));
-        user.setEmail(dto.getEmail());
+            // Validate document types and files
+            if (dto.getDocuments() != null) {
+                for (Map.Entry<String, List<MultipartFile>> entry : dto.getDocuments().entrySet()) {
+                    String docType = entry.getKey();
+                    List<MultipartFile> files = entry.getValue();
 
-        Role role = roleRepo.findByName(roleName)
-                .orElseThrow(() -> new RuntimeException("Role not found"));
-        user.addRole(role);
+                    if (!existingDocTypes.containsKey(docType)) {
+                        return ResponseUtil.fail("Invalid document type: " + docType,
+                                null, HttpStatus.BAD_REQUEST);
+                    }
 
-        try {
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
+                    DocumentMaster docMaster = existingDocTypes.get(docType);
+
+                    if (files.size() > 1 && !docMaster.isAllowedMultiple()) {
+                        return ResponseUtil.fail("Multiple files not allowed for document type: " + docType,
+                                null, HttpStatus.BAD_REQUEST);
+                    }
+                }
             }
 
-            List<UserDocumentDto> documentDtos = new ArrayList<>();
+            // Create user
+            UserEntity user = new UserEntity();
+            user.setUsername(dto.getUsername());
+            user.setPassword(encoder.encode(dto.getPassword()));
+            user.setEmail(dto.getEmail());
+
+            Role role = roleRepo.findByName(roleName)
+                    .orElseThrow(() -> new RuntimeException("Role not found"));
+            user.addRole(role);
+
+            // Create upload directory
+            Path uploadPath = Paths.get(uploadDir);
+            Files.createDirectories(uploadPath);
+
+            // Process documents
+            Map<String, List<String>> docTypeToFileUrls = new LinkedHashMap<>();
             UserEntity savedUser = userRepo.save(user);
+            List<UserDocument> savedDocuments = new ArrayList<>();
 
             if (dto.getDocuments() != null) {
                 for (Map.Entry<String, List<MultipartFile>> entry : dto.getDocuments().entrySet()) {
-                    String docCode = entry.getKey();
-                    DocumentMaster docType = docTypes.getOrDefault(docCode, createGenericDocumentMaster(docCode));
+                    String docType = entry.getKey();
+                    DocumentMaster docMaster = existingDocTypes.get(docType);
 
                     for (MultipartFile file : entry.getValue()) {
-                        if (!file.isEmpty()) {
-                            String url = validateAndProcessFileUpload(savedUser, file, docType);
+                        try {
+                            String url = processFileUpload(savedUser, file, docMaster);
 
                             UserDocument doc = new UserDocument();
                             doc.setUserId(savedUser.getUserId());
                             doc.setUsername(savedUser.getUsername());
-                            doc.setDocumentMaster(docType);
+                            doc.setDocumentMaster(docMaster);
                             doc.setFilePath(url);
                             UserDocument savedDoc = userDocumentRepository.save(doc);
+                            savedDocuments.add(savedDoc);
 
-                            documentDtos.add(new UserDocumentDto(
-                                    savedDoc.getId(),
-                                    docType.getDocumentCode(),
-                                    url
-                            ));
+                            docTypeToFileUrls.computeIfAbsent(docType, k -> new ArrayList<>()).add(url);
+                        } catch (IOException e) {
+                            logger.error("Failed to process file for document type {}: {}", docType, e.getMessage());
+                            return ResponseUtil.fail("Failed to process file for document type: " + docType,
+                                    e.getMessage(), HttpStatus.BAD_REQUEST);
                         }
                     }
                 }
             }
+
+            // Prepare response
+            List<UserDocumentDto> documentDtos = docTypeToFileUrls.entrySet().stream()
+                    .map(entry -> new UserDocumentDto(
+                            savedDocuments.stream()
+                                    .filter(d -> d.getDocumentMaster().getDocumentCode().equals(entry.getKey()))
+                                    .map(UserDocument::getId)
+                                    .findFirst()
+                                    .orElse(null),
+                            entry.getKey(),
+                            entry.getValue()
+                    ))
+                    .collect(Collectors.toList());
 
             UserResponseDto responseDto = new UserResponseDto(
                     savedUser.getUserId(),
@@ -235,63 +379,46 @@ public class AuthController {
                     documentDtos
             );
 
-            logger.info("User registered successfully: {}", savedUser.getUsername());
             return ResponseUtil.success("User registered successfully", responseDto);
-        } catch (IOException e) {
-            logger.error("Failed to process documents for user {}: {}", dto.getUsername(), e.getMessage());
-            return ResponseUtil.fail("Failed to process documents", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        } catch (Exception e) {
+            logger.error("Registration failed: {}", e.getMessage());
+            return ResponseUtil.fail("Registration failed", e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
-    private DocumentMaster createGenericDocumentMaster(String docCode) {
-        DocumentMaster generic = new DocumentMaster();
-        generic.setDocumentCode(docCode);
-        generic.setDocumentName("Custom_" + docCode);
-        generic.setMandatory(false);
-        generic.setAllowedMultiple(true);
-        generic.setMaxSize(10.0);
-        generic.setAllowedExtensions("jpg,jpeg,png,pdf,doc,docx");
-        return generic;
-    }
-
-    private String validateAndProcessFileUpload(UserEntity user, MultipartFile file, DocumentMaster docType) throws IOException {
+    private String processFileUpload(UserEntity user, MultipartFile file, DocumentMaster docType) throws IOException {
         if (file == null || file.isEmpty()) {
-            logger.warn("Empty file uploaded for user {} and document type {}", user.getUsername(), docType.getDocumentCode());
-            return null;
+            throw new IOException("Empty file uploaded");
         }
 
+        // Check file extension
         String filename = file.getOriginalFilename();
-        if (filename == null) {
+        if (filename == null || filename.isBlank()) {
             throw new IOException("Invalid file: No filename provided");
         }
 
         String ext = filename.substring(filename.lastIndexOf(".") + 1).toLowerCase();
-        String allowedExtensions = docType.getAllowedExtensions() != null ? docType.getAllowedExtensions() : "jpg,jpeg,png,pdf,doc,docx";
-        if (!Arrays.asList(allowedExtensions.split(",")).contains(ext)) {
-            logger.error("Invalid file extension {} for document type {}", ext, docType.getDocumentName());
-            throw new IOException("Invalid file extension for " + docType.getDocumentName() + ": " + ext);
+        if (!Arrays.asList(docType.getAllowedExtensions().split(",")).contains(ext)) {
+            throw new IOException("Invalid file extension: " + ext +
+                    ". Allowed: " + docType.getAllowedExtensions());
         }
 
+        // Check file size
         double sizeMB = file.getSize() / (1024.0 * 1024.0);
-        double maxSize = docType.getMaxSize() != null ? docType.getMaxSize() : 10.0;
-        if (sizeMB > maxSize) {
-            logger.error("File size {}MB exceeds maximum {}MB for document type {}", sizeMB, maxSize, docType.getDocumentName());
-            throw new IOException("File exceeds maximum size for " + docType.getDocumentName() + ": " + sizeMB + "MB");
+        if (docType.getMaxSize() != null && sizeMB > docType.getMaxSize()) {
+            throw new IOException("File exceeds maximum size: " + sizeMB + "MB. Max allowed: " +
+                    docType.getMaxSize() + "MB");
         }
 
+        // Create user directory
         String userDir = uploadDir + user.getUsername() + "/";
         Files.createDirectories(Paths.get(userDir));
 
+        // Save file with document type name and timestamp to avoid conflicts
         String newFilename = docType.getDocumentCode() + "_" + System.currentTimeMillis() + "." + ext;
         Path filePath = Paths.get(userDir + newFilename);
         Files.write(filePath, file.getBytes());
 
-        String fileUrl = fileBaseUrl + user.getUsername() + "/" + newFilename;
-        logger.info("File uploaded successfully: {} for user {}", fileUrl, user.getUsername());
-        return fileUrl;
-    }
-
-    private <T> List<T> nonNullList(List<T> list) {
-        return list != null ? list : Collections.emptyList();
+        return fileBaseUrl + user.getUsername() + "/" + newFilename;
     }
 }

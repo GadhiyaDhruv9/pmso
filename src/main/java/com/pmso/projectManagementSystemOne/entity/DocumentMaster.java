@@ -1,14 +1,17 @@
 package com.pmso.projectManagementSystemOne.entity;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "document_master")
-@Getter
-@Setter
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class DocumentMaster {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -30,4 +33,13 @@ public class DocumentMaster {
 
     @Column(name = "allowed_extensions")
     private String allowedExtensions = "jpg,jpeg,png,pdf";
+
+    @OneToMany(
+            mappedBy = "documentMaster",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    @ToString.Exclude
+    private List<UserDocument> userDocuments = new ArrayList<>();
 }
