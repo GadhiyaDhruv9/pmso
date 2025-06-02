@@ -4,15 +4,26 @@ import java.util.List;
 
 public class UserDocumentDto {
     private Long docId;
-    private String type;
-    private List<String> file;
+    private String documentType;
+    private List<String> fileUrls;
 
-    public UserDocumentDto(Long docId, String type, List<String> file) {
+    // Full constructor
+    public UserDocumentDto(Long docId, String documentType, List<String> fileUrls) {
         this.docId = docId;
-        this.type = type;
-        this.file = file;
+        this.documentType = documentType;
+        this.fileUrls = fileUrls;
     }
 
+    // Constructor for mapping from Map.Entry
+    public UserDocumentDto(String documentType, List<String> fileUrls) {
+        this(null, documentType, fileUrls);
+    }
+
+    // Default constructor
+    public UserDocumentDto() {
+    }
+
+    // Getters and setters
     public Long getDocId() {
         return docId;
     }
@@ -21,19 +32,19 @@ public class UserDocumentDto {
         this.docId = docId;
     }
 
-    public String getType() {
-        return type;
+    public String getDocumentType() {
+        return documentType;
     }
 
-    public void setType(String type) {
-        this.type = type;
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
     }
 
-    public List<String> getFile() {
-        return file;
+    public List<String> getFileUrls() {
+        return fileUrls;
     }
 
-    public void setFile(List<String> file) {
-        this.file = file;
+    public void setFileUrls(List<String> fileUrls) {
+        this.fileUrls = fileUrls;
     }
 }
